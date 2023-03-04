@@ -82,7 +82,7 @@ function getEnvFromJson() {
  * @returns Функция возвращает JSON (object)
  */
 function doGet(e = {}) {
-  saveToGoogleTable('GET_logs', [new Date(), e]);
+  saveToGoogleTable('GET_logs', [new Date(), JSON.stringify(e, null, 2)]);
 
   const data = {
     message: 'Приложение работает',
@@ -102,7 +102,7 @@ function doGet(e = {}) {
  */
 function doPost(e = {}) {
   try {
-    saveToGoogleTable('POST_logs', [new Date(), e]);
+    saveToGoogleTable('POST_logs', [new Date(), JSON.stringify(e, null, 2)]);
 
     if (!e.postData?.contents) {
       throw new Error('нет тела запроса у POST');
@@ -114,14 +114,11 @@ function doPost(e = {}) {
 
     saveToGoogleTable('POST_logs', [new Date(), JSON.stringify(data, null, 2)]);
 
-    let text = '';
-    text += 'Я вас не разумею \n';
-    text += 'Каб даведацца мае каманды адпраў мне паведамленне: \n';
-    text += '**/help**\n\n';
-
+    const user_event = user.getEvent();
     const user_id = user.getUserId();
     const user_name = user.getUserName();
     const user_timestamp = user.getTimestamp();
+    const user_message_token = user.getMessageToken();
 
     const user_country = user.getCountry();
     const user_lang = user.getLanguage();
@@ -133,102 +130,106 @@ function doPost(e = {}) {
 
     const user_phone_number = user.getPhoneNumber();
 
-    if (isCommandHelp(user_id, user_text)) return;
+    switch (user_event) {
+      // < < < event_conversation_started
+      case 'conversation_started':
+        saveToGoogleTable('event_conversation_started', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
 
-    if (isCommandSendPhone(user_id, user_text)) return;
+        if (isStartEvent(user_id, user_event)) return;
 
-    if (isCommandSetName(user_id, user_text)) return;
+        break;
+      // event_conversation_started > > >
+      // < < < event_seen
+      case 'seen':
+        saveToGoogleTable('event_seen', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
 
-    if (user_id) {
-      text += '**Ваш ID**: \n';
-      text += `${user_id} \n`;
+        // if (isSeenEvent(user_id, user_event)) return;
+
+        break;
+      // event_seen > > >
+      // < < < event_message
+      case 'message':
+        saveToGoogleTable('event_message', [
+          new Date(),
+          `="${user_id}"`,
+          user_lang,
+          user_country,
+          user_text,
+          user_phone_number,
+          user_picture_file_name,
+          user_picture_size,
+          user_picture_media,
+        ]);
+
+        if (isCommandHelp(user_id, user_text)) return;
+
+        if (isCommandSendPhone(user_id, user_text)) return;
+
+        if (isCommandSetName(user_id, user_text)) return;
+
+        let text = '';
+        text += 'Я вас не разумею \n';
+        text += 'Каб даведацца мае каманды адпраў мне паведамленне: \n';
+        text += '**/help**\n\n';
+        text += `**Дадзеныя, якія прыйшлі на Google Apps Script**: \n`;
+        text += `${JSON.stringify(data, null, 4)} \n`;
+
+        sendMessage(user_id, text);
+
+        break;
+      // event_message > > >
+      // < < < failed
+      case 'failed':
+        saveToGoogleTable('event_failed', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
+
+        break;
+      // failed > > >
+      // < < < delivered
+      case 'delivered':
+        saveToGoogleTable('event_delivered', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
+        break;
+      // delivered > > >
+      // < < < webhook
+      case 'webhook':
+        saveToGoogleTable('event_webhook', [
+          new Date(),
+          JSON.stringify(data, null, 2),
+        ]);
+        break;
+      // webhook > > >
+      // < < < unsubscribed
+      case 'unsubscribed':
+        saveToGoogleTable('event_unsubscribed', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
+        break;
+      // unsubscribed > > >
+      default:
+        saveToGoogleTable('POST_err', [
+          new Date(),
+          `="${user_id}"`,
+          JSON.stringify(data, null, 2),
+        ]);
+        break;
     }
-
-    if (user_name) {
-      text += `**Ваша імя**: ${user_name}. \n`;
-      if (user_name === 'Subscriber') {
-        text += 'Имя Subscriber, таму што ў наладах выключана \n\n';
-        text +=
-          'Settings > Privacy > Personal data > Allow content personalization \n\n';
-        text +=
-          'Настройки > Конфиденциальность > Личные данные > Персонализация контента \n\n';
-      }
-    }
-
-    if (user_timestamp) {
-      text += `**Дата адпраўкі паведамлення**: ${user_timestamp}. \n`;
-      text += `${new Date(user_timestamp).toJSON()} \n`;
-    }
-
-    if (user_country) {
-      text += `**Ваша краіна**: ${user_country}. \n`;
-    }
-
-    if (user_lang) {
-      text += `**Ваша мова**: ${user_lang}. \n`;
-    }
-
-    if (user_text) {
-      text += `**Ваша паведамленне**: \n`;
-      text += `< < < Пачатак паведамлення\n`;
-      text += `${user_text} \n`;
-      text += `Канец паведамлення > > > \n`;
-    }
-
-    if (user_picture_file_name) {
-      text += `**Ваш малюнак**: \n`;
-      text += `${user_picture_file_name} \n`;
-      // text += `${user_picture_media} \n`;
-
-      const byte = user_picture_size;
-      const kebibyte = (byte / 1024).toFixed(2);
-      const kilobyte = (byte / 1000).toFixed(2);
-      const mebibyte = (byte / 1024 / 1024).toFixed(2);
-      const megabyte = (byte / 1000 / 1000).toFixed(2);
-
-      text += '**Памер малюнка**: \n';
-      text += `${byte} Байт \n`;
-      text += `${kebibyte} КебиБайт \n`;
-      text += `${kilobyte} КілоБайт \n`;
-      text += `${mebibyte} МебіБайт \n`;
-      text += `${megabyte} МегаБайт \n`;
-    }
-
-    if (user_phone_number) {
-      text += `**Ваш нумар тэлефона**: ${user_phone_number} \n`;
-    }
-
-    text += `**Дадзеныя, якія прыйшлі на Google Apps Script**: \n`;
-    text += `${JSON.stringify(data, null, 2)} \n`;
-
-    saveToGoogleTable('POST_logs', [new Date(), text]);
-
-    saveToGoogleTable('messages', [
-      new Date(),
-      user_id,
-      user_lang,
-      user_country,
-      user_text,
-    ]);
-
-    sendMessage(user_id, text);
-
-    sendMessage(
-      user_id,
-      'Please enter your phone number:Please enter your phone number:',
-      {
-        keyboard: {
-          Type: 'keyboard',
-          Buttons: [
-            {
-              ActionType: 'share-phone',
-              ActionBody: 'phone number',
-              Text: 'Share Phone',
-            },
-          ],
-        },
-      }
-    );
   } catch (err) {
     saveToGoogleTable('POST_err', [
       new Date(),
@@ -262,67 +263,166 @@ function sendMessage(user_id, text, params = {}) {
     },
   };
 
-  const response = UrlFetchApp.fetch(url, options);
-  saveToGoogleTable('sendMessage', [
+  UrlFetchApp.fetch(url, options);
+  saveToGoogleTable('function_logs_sendMessage', [
     new Date(),
-    JSON.stringify(response, null, 2),
+    JSON.stringify(data, null, 2),
   ]);
 }
 
+/**
+ * - getEvent
+ *   - "conversation_started" - при старте бота
+ *   - "seen" - если пользователь смотрит на сообщение
+ *   - "message" - если пользователь отправил сообщение
+ * -
+ * - getUserId - "xxxxxxxxxxxxxxxxxxxxxxxx"
+ * - getUserName - "Subscriber"
+ * - getLanguage - "ru"
+ * - getCountry - "BY"
+ * -
+ * - getMessageToken - 1000000000000000000
+ * - getTimestamp - 1000000000000
+ * -
+ * - getAvatar - "http://exampe.com/avatar.png"
+ * - getApiVersion - 10
+ * -
+ * - getText - "text"
+ * -
+ * - getPhoneNumber - 111111111111
+ * -
+ * - getPictureMedia - "http://exampe.com/media.png"
+ * - getPictureThumbnail - "http://exampe.com/thumbnail.png"
+ * - getPictureFileName - "picture.png"
+ * - getPictureSize - 1
+ */
 class User {
   constructor(data) {
     this.data = data;
-    this.setUserId();
-    this.setUserName();
-    this.setTimestamp();
-    this.setText();
-    this.setLanguage();
-    this.setCountry();
-    this.setPicture();
-    this.setPhoneNumber();
+    this.event = this.data?.event;
+
+    switch (this.event) {
+      // < < < conversation_started
+      case 'conversation_started':
+        this.user_id = this.data?.user?.id;
+        this.user_name = this.data?.user?.name;
+        this.language = this.data?.user?.language;
+        this.country = this.data?.user?.country;
+        break;
+      // conversation_started > > >
+      // < < < seen
+      case 'seen':
+        this.message_token = this.data?.message_token;
+        this.timestamp = this.data?.timestamp;
+        this.user_id = this.data?.user_id;
+        break;
+      // seen > > >
+      // < < < delivered
+      case 'delivered':
+        this.message_token = this.data?.message_token;
+        this.timestamp = this.data?.timestamp;
+        this.chat_hostname = this.data?.chat_hostname;
+        this.user_id = this.data?.user_id;
+        break;
+      // delivered > > >
+      // < < < webhook
+      case 'webhook':
+        this.timestamp = this.data?.timestamp;
+        this.chat_hostname = this.data?.chat_hostname;
+        this.message_token = this.data?.message_token;
+        break;
+      // webhook > > >
+      // < < < unsubscribed
+      case 'unsubscribed':
+        this.timestamp = this.data?.timestamp;
+        this.chat_hostname = this.data?.chat_hostname;
+        this.user_id = this.data?.userId;
+        this.message_token = this.data?.message_token;
+        break;
+      // unsubscribed > > >
+      // < < < message
+      case 'message':
+        this.timestamp = this.data?.timestamp;
+        this.message_token = this.data?.message_token;
+
+        this.user_id = this.data?.sender?.id;
+        this.user_name = this.data?.sender.name;
+        this.user_avatar = this.data?.sender?.avatar;
+        this.country = this.data?.sender?.country;
+        this.language = this.data?.sender?.language;
+        this.api_version = this.data?.sender?.api_version;
+
+        switch (this.data?.message?.type) {
+          // < < < text
+          case 'text':
+            this.text = this.data?.message?.text;
+            break;
+          // text > > >
+          // < < < contact
+          case 'contact':
+            this.phone_number = this.data?.message?.contact?.phone_number;
+            break;
+          // contact > > >
+          // < < < picture
+          case 'picture':
+            this.picture_media = this.data?.message?.media;
+            this.picture_thumbnail = this.data?.message?.thumbnail;
+            this.picture_file_name = this.data?.message?.file_name;
+            this.picture_size = this.data?.message?.size;
+            break;
+          // picture > > >
+          default:
+            break;
+        }
+        break;
+      // message > > >
+      default:
+        break;
+    }
   }
 
-  setUserId() {
-    this.user_id = this.data?.sender?.id;
+  getEvent() {
+    return this.event;
   }
 
   getUserId() {
     return this.user_id;
   }
 
-  setUserName() {
-    this.userName = this.data?.sender?.name;
-  }
-
   getUserName() {
-    return this.userName;
+    return this.user_name;
   }
 
-  setTimestamp() {
-    this.timestamp = this.data?.timestamp;
+  getLanguage() {
+    return this.language;
+  }
+
+  getCountry() {
+    return this.country;
+  }
+
+  getMessageToken() {
+    return this.message_token;
   }
 
   getTimestamp() {
     return this.timestamp;
   }
 
-  setText() {
-    if (this.data?.message?.type === 'text') {
-      this.text = this.data?.message?.text;
-    }
+  getAvatar() {
+    return this.avatar;
+  }
+
+  getApiVersion() {
+    return this.api_version;
   }
 
   getText() {
     return this.text;
   }
 
-  setPicture() {
-    if (this.data?.message?.type === 'picture') {
-      this.picture_media = this.data?.message?.media;
-      this.picture_thumbnail = this.data?.message?.thumbnail;
-      this.picture_file_name = this.data?.message?.file_name;
-      this.picture_size = this.data?.message?.size;
-    }
+  getPhoneNumber() {
+    return this.phone_number;
   }
 
   getPictureMedia() {
@@ -340,32 +440,6 @@ class User {
   getPictureSize() {
     return this.picture_size;
   }
-
-  setLanguage() {
-    this.language = this.data?.sender?.language;
-  }
-
-  getLanguage() {
-    return this.language;
-  }
-
-  setCountry() {
-    this.country = this.data?.sender?.country;
-  }
-
-  getCountry() {
-    return this.country;
-  }
-
-  setPhoneNumber() {
-    if (this.data?.message?.type === 'contact') {
-      this.phone_number = this.data?.message?.contact?.phone_number;
-    }
-  }
-
-  getPhoneNumber() {
-    return this.phone_number;
-  }
 }
 
 /**
@@ -379,22 +453,23 @@ function saveToGoogleTable(sheet, array) {
   messagesTable.appendRow(array);
 }
 
+function getHelp() {
+  return `
+  **/help**
+    - даведацца пра ўсе каманды бота
+  
+  **/sendPhone**
+    - адправіць свой нумар тэлефона
+  
+  **/setName Iмя**
+    - пазначыць іншае імя
+    `;
+}
+
 function isCommandHelp(user_id, text) {
   if (text !== '/help') return false;
 
-  sendMessage(
-    user_id,
-    `
-**/help**
-  - даведацца пра ўсе каманды бота
-
-**/sendPhone**
-  - адправіць свой нумар тэлефона
-
-**/setName Iмя**
-  - пазначыць іншае імя
-  `
-  );
+  sendMessage(user_id, getHelp());
 
   return true;
 }
@@ -428,6 +503,26 @@ function isCommandSetName(user_id, text) {
   const name = text.split(' ')[1];
 
   sendMessage(user_id, `Прывітанне, ${name}!`);
+
+  return true;
+}
+
+function isStartEvent(user_id, event) {
+  if (event !== 'conversation_started') return false;
+
+  sendMessage(user_id, `Сардэчна запрашаем у чат\n${getHelp()}`);
+
+  return true;
+}
+
+function isSeenEvent(user_id, event) {
+  if (event !== 'seen') return false;
+
+  // Будет зацикливание, так как будет слаться сообщение, а мы его читаем
+  // Мы читаем - и происходит отправка нового сообщения
+  // Мы читаем сообщение - и происходит отправка другого сообщения
+  // Мы читает другое сообщение - и приходит третье сообщение
+  sendMessage(user_id, 'Вау, вы прачыталі паведамленне.');
 
   return true;
 }

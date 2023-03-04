@@ -66,11 +66,50 @@
             https://docs.google.com/spreadsheets/d/<тут_ид_гугл_таблицы>/edit
             ```
             В Google таблице создай следующие листы:
-            - `messages` - сообщения от Viber пользователей
             - `POST_err` - логи функции doPost, если возникло исключение
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
             - `POST_logs` - логи функции doPost
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
             - `GET_logs` - логи функции doGet
-            - `sendMessage` - логи функции sendMessage
+                - поле A (date) - хранит дату
+                - поле B (data) - хранит тело запроса, которое отправлено на Viber API
+            - `function_logs_sendMessage` - логи функции sendMessage
+                - поле A (date) - хранит дату
+                - поле B (data) - хранит тело запроса, которое отправлено на Viber API
+            - `event_message` - таблица, которая хранит сообщения, которые отправил пользователь
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (languge) - хранит язык устройства
+                - поле D (country) - хранит страну
+                - поле E (text) - хранит сообщение, которое отправил viber пользователь
+                - поле F (phoneNumber) - хранит номер телефона
+                - поле G (pictureFileName) - храни имя картинки
+                - поле H (pictureSize) - хранит размер картинки
+                - поле I (pictureMedia) - хранит ссылку на картинку
+            - `event_conversation_started` - таблица, которая показывает, что пользователь присоединился к боту
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
+            - `event_seen` - таблица, которая показывает, что сообщение прочитано
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
+            - `event_delivered`
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
+            - `event_unsubscribed` - таблица, которая показывает данные, отписавщихся
+                - поле A (date) - хранит дату
+                - поле B (userId) - хранит id viber пользователя
+                - поле С (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
+            - `event_webhook` - таблица, которая показывает, что установлен новый хук
+                - поле A (date) - хранит дату
+                - поле B (data) - хранит данные, которые пришли в POST запросе на Google Apps Script
+            - `event_failed`
         - `APP__GOOGLE_APPS_SCRIPT_URL` - ссылка на проект Google Apps Script
             Как получить ссылку на проект:
             1. Откройте проект на https://script.google.com
