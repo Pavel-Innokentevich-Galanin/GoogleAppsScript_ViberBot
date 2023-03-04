@@ -175,6 +175,8 @@ function doPost(e = {}) {
 
         if (isCommandSetName(user_id, user_text)) return;
 
+        if (isMessagePhone(user_id, user_phone_number, data)) return;
+
         let text = '';
         text += 'Я вас не разумею \n';
         text += 'Каб даведацца мае каманды адпраў мне паведамленне: \n';
@@ -502,6 +504,8 @@ function isCommandSetName(user_id, text) {
 
   const name = text.split(' ')[1];
 
+  SprPolzovateli.setName(user_id, name);
+
   sendMessage(user_id, `Прывітанне, ${name}!`);
 
   return true;
@@ -525,4 +529,106 @@ function isSeenEvent(user_id, event) {
   sendMessage(user_id, 'Вау, вы прачыталі паведамленне.');
 
   return true;
+}
+
+class SprPolzovateli {
+  /**
+   * Метод получает массив данных пользователей из таблицы СПР_Пользователи
+   * @returns [{
+   *  userId: "_",
+   *  name: "_",
+   *  description: "_",
+   *  phoneNumber: "_"
+   * }]
+   */
+  static getUser() {
+    try {
+      const ss = SpreadsheetApp.openById(process.env.APP__GOOGLE_SHEETS_ID);
+      const sheet = ss.getSheetByName('СПР_Пользователи');
+      // const keys = sheet.getRange('A1:D1').getValues();
+      const values = sheet.getRange('A2:D').getValues();
+
+      let array = [];
+
+      values.forEach((data) => {
+        array.push({
+          userId: JSON.parse(data[0]), // viber ид пользователя
+          name: data[1], // имя которое задал пользователь
+          description: data[2], // описание, которое заполняем вручную в таблице (пометки)
+          phoneNumber: data[3], // телефон
+        });
+      });
+
+      console.log(array);
+      return array;
+    } catch (err) {
+      saveToGoogleTable('logs', [new Date(), `${err}`]);
+    }
+  }
+
+  /**
+   * Метод устанавливает имя пользователя в таблицу СПР_Пользователи
+   * @param userId - ид viber пользователя
+   * @param name - имя пользователя
+   */
+  static setName(userId, name) {
+    try {
+      const users = SprPolzovateli.getUser();
+
+      const length = users.length;
+      for (let i = 0; i < length; i++) {
+        const currentUserId = users[i].userId;
+        if (currentUserId === userId) {
+          const ss = SpreadsheetApp.openById(process.env.APP__GOOGLE_SHEETS_ID);
+          const sheet = ss.getSheetByName('СПР_Пользователи');
+          const cell = sheet.getRange(`B${i + 2}`);
+          cell.setValue(name);
+          break;
+        }
+      }
+    } catch (err) {
+      myLog('logs', [new Date(), `${err}`]);
+    }
+  }
+
+  /**
+   * Метод устанавливает телефон пользователя в таблицу СПР_Пользователи
+   * @param userId - ид viber пользователя
+   * @param phoneNumber - телефон
+   */
+  static setPhone(userId, phoneNumber) {
+    try {
+      const users = SprPolzovateli.getUser();
+
+      const length = users.length;
+      for (let i = 0; i < length; i++) {
+        const currentUserId = users[i].userId;
+        if (currentUserId === userId) {
+          const ss = SpreadsheetApp.openById(process.env.APP__GOOGLE_SHEETS_ID);
+          const sheet = ss.getSheetByName('СПР_Пользователи');
+          const cell = sheet.getRange(`D${i + 2}`);
+          cell.setValue(phoneNumber);
+          break;
+        }
+      }
+    } catch (err) {
+      myLog('logs', [new Date(), `${err}`]);
+    }
+  }
+}
+
+function isMessagePhone(user_id, phoneNumber, data) {
+  if (data?.message?.type !== 'contact') return false;
+
+  if (data?.message?.text !== 'phone number') return false;
+
+  SprPolzovateli.setPhone(user_id, phoneNumber);
+
+  sendMessage(user_id, 'Нумар тэлефона захаваны');
+
+  return true;
+}
+
+function myLog(message) {
+  saveToGoogleTable('logs', [new Date(), `${message}`]);
 }
