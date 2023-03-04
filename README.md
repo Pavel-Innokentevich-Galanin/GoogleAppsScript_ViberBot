@@ -1,33 +1,33 @@
 ## Введение
 
-Создам бота, которому можно слать сообщение,
-а он будет тебе отвечать.
+Создадим Viber бота.
+
 Бот будет работать без NodeJS.
-Бот будет запушен с помощью хука.
+
 Когда боту будет приходить сообщение,
-то бот будет отправлять POST запрос на Google Apps Scripts.
+то бот будет отправлять POST запрос на Google Apps Script.
 Мы этот POST запрос будет обрабатывать и отвечать пользователю.
 
-Дальше уже дело творческое.
+Дальше уже дело творческое:
+- создал команду `/help`, по которой бот выведет список команд
+- создал команду `/sendPhone`, по которой бот отправит клавиатуру для отправки телефона
+- создал команду `/setName Джон`, по которой бот будет знать имя
+    - Viber имя можно получить от ответа `response.sender.name`
+    - но если пользователь запретил в настройках, то там будет имя 'Subscriber'
+    - пользователя нужно просить включить:
+    - Настройки > Конфиденциальность > Личные данные > Персонализация контента
+    - чтобы не просить править настройки, я создал команду `/setName Чарли`
 
-Плюсы:
+Плюсы Google Apps Script при создании Viber бота:
 - это бесплатно
 - не нужно иметь машину с утановленой NodeJS
 
-Минусы:
+Минусы Google Apps Script при создании Viber бота:
 - нельзя использовать npm пакеты (нужно писать код самому)
 - когда редактируешь код то, чтобы заставить бота выполнять новый код,
-    то нужно генерировать новую ссылку в Google Apps Script
-    и с помощью Postman
-    выполняем POST запрос на `https://chatapi.viber.com/pa/set_webhook`,
-    - Headers:
-        - X-Viber-Auth-Token: xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx
-    - Body:
-        ```json
-        {
-            "url": "https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec"
-        }
-        ```
+    нужно получать новую ссылку Google Apps Script
+    и вешать хуком эту ссылку на Viber бота
+    (как это делать я описал ниже)
 
 ## Создать бота Viber
 
@@ -52,53 +52,60 @@
 1. Жмем `New project` (Создать проект).
 1. Переименовываю проект:
     - Жму `Untitled project` (Проект без названия).
-    - Пишу `8sem_AIS_ViberBot`.
-1. В файл `Code.gs` (Код.gs) пишем код:
-    1. Вставляю в файл `Code.gs` (Код.gs) код [src/Code.gs](src/Code.gs).
+    - Пишу `GoogleAppsScript_ViberBot`.
+1. В файл `Code.gs` или в файл `Код.gs` пишем код [src/Code.gs](src/Code.gs).
 1. Создаем файл секретов:
     1. Жму `+`.
     1. Жму `HTML`.
     1. Ввожу название `env`.
     1. Вставляю в файл `env.html` код [src/env.html](src/env.html).
     1. В env файле (`env.html`) нужно поменять следующие параметры:
-        - `viber_bot_token` - токен бота viber (можно создать через сайт https://partners.viber.com)
-        - `google_table_id` - ид [Google таблицы](https://docs.google.com/spreadsheets)
+        - `APP__VIBER_BOT_TOKEN` - токен бота viber (можно создать через сайт https://partners.viber.com)
+        - `APP__GOOGLE_SHEETS_ID` - ид [Google Таблицы](https://docs.google.com/spreadsheets)
             ```
             https://docs.google.com/spreadsheets/d/<тут_ид_гугл_таблицы>/edit
             ```
             В Google таблице создай следующие листы:
-            - messages
-            - POST_err
-            - POST_logs
-            - GET_logs
+            - `messages` - сообщения от Viber пользователей
+            - `POST_err` - логи функции doPost, если возникло исключение
+            - `POST_logs` - логи функции doPost
+            - `GET_logs` - логи функции doGet
+            - `sendMessage` - логи функции sendMessage
+        - `APP__GOOGLE_APPS_SCRIPT_URL` - ссылка на проект Google Apps Script
+            Как получить ссылку на проект:
+            1. Откройте проект на https://script.google.com
+            1. 
+                - Нажмите "Deploy" или "Начать развертывание".
+                - Нажмите "New deployment" или "Новое развертывание".
+                ![](assets/2023-03-04_15-56-02.png)
+            1. 
+                - Нажмите на шестренку у текста "Select type" или у текста "Выберите тип".
+                - Нажмите "Web app" или "Веб-приложение".
+                ![](assets/2023-03-04_15-56-30.png)
+            1. 
+                - В поле "New description" или в поле "Описание" можно указать любое описание, можно не указывать
+                - В поле "Execute as" или в поле "Запуск от имени" указать "Me" или "От моего имени"
+                - В поле "Who has access" или в поле "У кого есть доступа" указать "Anyone" или "Все"
+                - Нажмите "Deploy" или "Начать развертывание"
+                ![](assets/2023-03-04_15-57-19.png)
+            1. Скопируйте ссылку и вставьте в файл env.html в параметр APP__GOOGLE_APPS_SCRIPT_URL
+                ```conf
+                APP__VIBER_BOT_TOKEN=xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx
+                APP__GOOGLE_SHEETS_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+                APP__GOOGLE_APPS_SCRIPT_URL=https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec
+                ```
+                
+                ![](assets/2023-03-04_15-58-00.png)
 
-Как получить ссылку на проект:
-1. Заходим на страницу с файлом `Code.gs` (Код.gs)
-1. Жму `Deploy` (Начать развертывание).
-1. Жму `New deployment` (Новое развертывание).
-1. Жму на шестренку у текста `Select type` (Выберите тип).
-1. Жму `Web app` (Веб-приложение).
-    - `Description` (Описание)
-        - `New description` (Описание): `Telegram Bot`
-    - `Web App` (Веб-приложение):
-        - `Execute as` (Запуск от имени): `Me` (От моего имени)
-        - `Who has access` (У кого есть доступа): `Anyone` (Все)
-    - Жму `Deploy` (Начать развертывание)
-1. Копирую ссылку URL:
-    - `https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec`
-
-Как зацепить бота по ссылке:
-1. Выполняем POST запрос на https://chatapi.viber.com/pa/set_webhook
-    - Headers:
-        - X-Viber-Auth-Token: xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxx
-    - Body:
-        ```json
-        {
-            "url": "https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec"
-        }
-        ```
-
-Пиши своему боту. Он работает! Ура!
+                ![](assets/2023-03-04_15-58-46.png)
+            1. 
+                - Зайдите на файл с кодом "Code.gs" или "Код.gs"
+                - Выберите функцию "myFunction" и нажмите "Выполнить"
+                ![](assets/2023-03-04_15-59-43.png)
+            1. Ура, теперь когда пишут Viber боту, то он будет слать POST запрос на ссылку
+                ```
+                https://script.google.com/macros/s/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/exec
+                ```
 
 ## Структура проекта
 
@@ -110,15 +117,17 @@ tree --charset ascii -a -I ".git"
 
 ```
 .
+|-- assets              # папка с картинками для файла README.md
+|   `-- *
 |-- LICENSE             # лицензия репозитория
 |-- .prettierignore     # на какие файлы не работает выравнивание кода
 |-- .prettierrc.json    # выравнивание кода расширением Prettier в VS Code
 |-- README.md           # инструкция репозитория
 `-- src                 # папка с кодом
-    |-- Code.gs          # стартовый файл Google Script (аналог main.js)
+    |-- Code.gs         # файл скрипта в Google Apps Script
     `-- env.html        # файл с секретами (аналог .env)
 
-1 directory, 6 files
+2 directories
 ```
 
 ## Список использованных источников:
