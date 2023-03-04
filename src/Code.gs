@@ -139,7 +139,7 @@ function doPost(e = {}) {
           JSON.stringify(data, null, 2),
         ]);
 
-        if (isStartEvent(user_id, user_event)) return;
+        if (isStartEvent(user_id, user_name, user_event)) return;
 
         break;
       // event_conversation_started > > >
@@ -175,7 +175,7 @@ function doPost(e = {}) {
 
         if (isCommandSetName(user_id, user_text)) return;
 
-        if (isMessagePhone(user_id, user_phone_number, data)) return;
+        if (isMessagePhone(user_id, user_name, user_phone_number, data)) return;
 
         let text = '';
         text += 'Я вас не разумею \n';
@@ -225,19 +225,11 @@ function doPost(e = {}) {
         break;
       // unsubscribed > > >
       default:
-        saveToGoogleTable('POST_err', [
-          new Date(),
-          `="${user_id}"`,
-          JSON.stringify(data, null, 2),
-        ]);
+        myLog(`${JSON.stringify(data, null, 2)}`, 'doPost');
         break;
     }
   } catch (err) {
-    saveToGoogleTable('POST_err', [
-      new Date(),
-      JSON.stringify(e, null, 2),
-      err,
-    ]);
+    myLog(`${err}`, 'doPost');
   }
 }
 
@@ -502,17 +494,19 @@ function isCommandSetName(user_id, text) {
 
   if (!isMatch) return false;
 
-  const name = text.split(' ')[1];
+  const user_name = text.split(' ')[1];
 
-  SprPolzovateli.setName(user_id, name);
+  SprPolzovateli.setName(user_id, user_name);
 
-  sendMessage(user_id, `Прывітанне, ${name}!`);
+  sendMessage(user_id, `Прывітанне, ${user_name}!`);
 
   return true;
 }
 
-function isStartEvent(user_id, event) {
+function isStartEvent(user_id, name, event) {
   if (event !== 'conversation_started') return false;
+
+  SprPolzovateli.addUserIfNotExists(user_id, name);
 
   sendMessage(user_id, `Сардэчна запрашаем у чат\n${getHelp()}`);
 
@@ -552,17 +546,17 @@ class SprPolzovateli {
 
       values.forEach((data) => {
         array.push({
-          userId: JSON.parse(data[0]), // viber ид пользователя
+          userId: data[0], // viber ид пользователя
           name: data[1], // имя которое задал пользователь
           description: data[2], // описание, которое заполняем вручную в таблице (пометки)
           phoneNumber: data[3], // телефон
         });
       });
 
-      console.log(array);
       return array;
     } catch (err) {
-      saveToGoogleTable('logs', [new Date(), `${err}`]);
+      myLog(`${err}`, 'getUser');
+      return [];
     }
   }
 
@@ -573,8 +567,9 @@ class SprPolzovateli {
    */
   static setName(userId, name) {
     try {
-      const users = SprPolzovateli.getUser();
+      SprPolzovateli.addUserIfNotExists(userId, name);
 
+      const users = SprPolzovateli.getUser();
       const length = users.length;
       for (let i = 0; i < length; i++) {
         const currentUserId = users[i].userId;
@@ -587,7 +582,7 @@ class SprPolzovateli {
         }
       }
     } catch (err) {
-      myLog('logs', [new Date(), `${err}`]);
+      myLog(`${err}`, 'setName');
     }
   }
 
@@ -596,10 +591,11 @@ class SprPolzovateli {
    * @param userId - ид viber пользователя
    * @param phoneNumber - телефон
    */
-  static setPhone(userId, phoneNumber) {
+  static setPhone(userId, userName, phoneNumber) {
     try {
-      const users = SprPolzovateli.getUser();
+      SprPolzovateli.addUserIfNotExists(userId, userName);
 
+      const users = SprPolzovateli.getUser();
       const length = users.length;
       for (let i = 0; i < length; i++) {
         const currentUserId = users[i].userId;
@@ -611,24 +607,57 @@ class SprPolzovateli {
           break;
         }
       }
+
+      sendMessage(userId, 'Нумар тэлефона захаваны');
     } catch (err) {
-      myLog('logs', [new Date(), `${err}`]);
+      myLog(`${err}`, 'setPhone');
+    }
+  }
+
+  /**
+   * Метод добавляет пользователя в таблицу СПР_Пользователи
+   * @param {string} userId - ид viber пользователя
+   * @param {string} name - имя пользователя в viber
+   */
+  static addUserIfNotExists(userId, name) {
+    try {
+      const users = SprPolzovateli.getUser();
+
+      let isExistUser = false;
+
+      const length = users.length;
+      for (let i = 0; i < length; i++) {
+        const currentUserId = users[i].userId;
+        if (currentUserId === userId) {
+          isExistUser = true;
+          break;
+        }
+      }
+
+      if (isExistUser) return;
+
+      saveToGoogleTable('СПР_Пользователи', [`="${userId}"`, name]);
+    } catch (err) {
+      myLog(`${err}`, 'addUserIfNotExists');
     }
   }
 }
 
-function isMessagePhone(user_id, phoneNumber, data) {
-  if (data?.message?.type !== 'contact') return false;
+function isMessagePhone(user_id, user_name, user_phone_number, data) {
+  try {
+    if (data?.message?.type !== 'contact') return false;
 
-  if (data?.message?.text !== 'phone number') return false;
+    if (data?.message?.text !== 'phone number') return false;
 
-  SprPolzovateli.setPhone(user_id, phoneNumber);
+    SprPolzovateli.setPhone(user_id, user_name, user_phone_number);
 
-  sendMessage(user_id, 'Нумар тэлефона захаваны');
-
-  return true;
+    return true;
+  } catch (err) {
+    myLog(`${err}`, 'isMessagePhone');
+    return false;
+  }
 }
 
-function myLog(message) {
-  saveToGoogleTable('logs', [new Date(), `${message}`]);
+function myLog(message, func) {
+  saveToGoogleTable('logs', [new Date(), `${message}`, func]);
 }
